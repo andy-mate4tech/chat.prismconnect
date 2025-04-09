@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # Frontend application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: prismconnect-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - prismconnect-network
+    depends_on:
+      - signaling-server
+      - speech-service
+      - translation-service
+
+  # Signaling server for WebRTC
+  signaling-server:
+    build:
+      context: ./backend/signaling-server
+      dockerfile: Dockerfile
+    container_name: prismconnect-signaling
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    networks:
+      - prismconnect-network
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+
+  # Speech recognition service
+  speech-service:
+    build:
+      context: ./backend/speech-service
+      dockerfile: Dockerfile
+    container_name: prismconnect-speech
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    networks:
+      - prismconnect-network
+    environment:
+      - PORT=4000
+      - NODE_ENV=production
+      - TRANSLATION_API_URL=http://translation-service:3000/translate
+
+  # Translation API service
+  translation-service:
+    build:
+      context: ./backend/translation-service
+      dockerfile: Dockerfile
+    container_name: prismconnect-translation
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - prismconnect-network
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - LIBRETRANSLATE_URL=http://libretranslate:5000
+    depends_on:
+      - libretranslate
+
+  # LibreTranslate service
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: prismconnect-libretranslate
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    networks:
+      - prismconnect-network
+    volumes:
+      - libretranslate-data:/home/libretranslate
+    environment:
+      - LT_LOAD_ONLY=en,vi
+      - LT_THREADS=4
+
+networks:
+  prismconnect-network:
+    driver: bridge
+
+volumes:
+  libretranslate-data:
+    driver: local
